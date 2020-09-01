@@ -1,0 +1,53 @@
+if params.len != 1 then exit("<b>Usage: "+program_path.split("/")[-1]+" [crack/bounce/show]</b>")
+crypto = include_lib("/lib/crypto.so")
+if not crypto then
+	crypto = include_lib(get_shell.host_computer.current_path+"/crypto.so")
+	if not crypto then exit("Crypto.so not found!")
+end if
+c = get_shell.host_computer
+f = c.File(home_dir + "/" + "wifis.txt")
+if not f then
+	c.touch(home_dir,"wifis.txt")
+	f = c.File(home_dir + "/" + "wifis.txt")
+end if
+
+get_interface = function()
+	if c.active_net_card.indexOf("WIFI") != null  then 
+		return "wlan0"
+	else
+		exit("Please use your Wifi-Card in Monitor Mode!")
+end function
+
+interface = get_interface()
+if params[0] == "show" then
+	for net in c.wifi_networks(interface)
+		print(net)
+	end for
+end if
+
+if params[0] == "crack" then
+	networks = c.wifi_networks(interface)
+	for net in networks
+		essid = net.split(" ")[2]
+		bssid = net.split(" ")[0]
+		ack = ceil(300000/net.split(" ")[1].remove("%").val)
+		crypto.aireplay(bssid,essid,ack)
+		pass = crypto.aircrack(c.current_path+"/file.cap")
+		c.connect_wifi(interface,bssid,essid,pass)
+		f.set_content(f.content + "\n" + bssid + "@" + essid + "@" + pass)
+	end for
+	clear_screen
+	print("Cracked " + networks.len + " networks!")
+end if
+if params[0] == "bounce" then
+	while true
+		for line in f.content.split("\n")
+			if line == "" or line == " " then continue
+			essid = line.split("@")[1]
+			bssid = line.split("@")[0]
+			password = line.split("@")[2]
+			c.connect_wifi(interface,bssid,essid,password)
+			print("Connected to: "+essid+" ["+bssid+"] > "+password)
+		end for
+	end while
+end if
